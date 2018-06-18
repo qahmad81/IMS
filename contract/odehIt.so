@@ -1,0 +1,156 @@
+pragma solidity ^0.4.16;
+
+contract odehIt {
+  string public name = "Odeh IT";
+  string public symbol = "ODH";
+  uint8 public decimals = 8;
+  uint256 totalSupply_ = 100000 * 10 ** uint256(decimals);
+  uint256 public minOffer = 10 * 10 ** uint256(decimals);
+
+  mapping(address => uint256) balances;
+  mapping(address => uint256) lockedBalances;
+    
+  address public owner;
+  
+  mapping(address => uint8) joiners;
+  address[] members;
+
+  struct Trade {
+    address owner;
+    uint8 way; // 1:sell 2:buy
+    uint createTime;
+    uint quantity;
+    uint price;
+  }
+  Trade[] public trades;
+  mapping(address => uint[]) myTrade;
+
+  
+  modifier onlyOwner() {
+    require(msg.sender == owner);
+    _;
+  }
+  
+  // This generates a public event on the blockchain that will notify clients
+  event Transfer(address indexed from, address indexed to, uint256 value);
+
+  // This notifies clients about the amount burnt
+  event Burn(address indexed from, uint256 value);
+  
+  function makeSellTrade(uint256 amount, uint256 price) external {
+    require(amount >= minOffer);
+    require(msg.value >= amount);
+    uint _value = amount * price;
+    balances[msg.sender] -= _value;
+    lockedBalances[msg.sender] += _value;
+    uint id = trades.push(Trade(msg.sender, 1, now, amount, price));
+    myTrade[msg.sender].push(id);
+  }
+
+  function makeBuyTrade(uint256 amount, uint256 price) external payable {
+    require(amount >= minOffer);
+    require(msg.value >= amount);
+    uint _value = amount * price;
+    require(_value == msg.value);
+    uint id = trades.push(Trade(msg.sender, 2, now, amount, price));
+    myTrade[msg.sender].push(id);
+  }
+  
+  function cancelTrade(uint _tradesId) external {
+    Trade storage trade = trades[_tradesId];
+    require(trade.owner == msg.sender);
+    uint _value = trade.quantity * trade.price;
+    if (trade.way == 1) {
+      balances[msg.sender] += _value;
+      lockedBalances[msg.sender] -= _value;
+      _removeTrade(_tradesId);
+      
+        
+    } else if (trade.way == 2) {
+      require(this.balance >= _value);
+      trade.owner.transfer(_value);
+      _removeTrade(_tradesId);
+
+        
+    }
+  }
+  
+  function profitsDistribution(uint value, uint onvalue, uint minProfitBalance, uint minProfit) {
+      uint theprofit = 0;
+      uint balance;
+      for (uint i = 0; i<members.length; i++){
+        balance = balances[members[i]];
+        require(balance>=minProfitBalance);
+        theprofit = balance / 10 ** uint256(decimals) * value / onvalue;
+        require(theprofit>=minProfit);
+        members[i].transfer(theprofit);
+      }
+  }
+  
+  function _removeTrade(uint _tradesId) private {
+    require(_tradesId < myTrade[msg.sender].length);
+    
+    for (uint i = _tradesId; i<trades.length-1; i++){
+        trades[i] = trades[i+1];
+    }
+    trades.length--;
+    
+    uint sheft = 0;
+    for (i = 0; i<myTrade[msg.sender].length-1; i++){
+        if (myTrade[msg.sender][i] == _tradesId) sheft = 1;
+        if (sheft == 1) myTrade[msg.sender][i] = myTrade[msg.sender][i+1];
+    }
+    myTrade[msg.sender].length--;
+  }
+
+  constructor() public {
+    owner = msg.sender;
+    balances[msg.sender] = totalSupply_;
+    joiners[msg.sender] = 1;
+    members.push(owner);
+  }
+
+  function totalSupply() public view returns (uint256) {
+    return totalSupply_;
+  }
+
+  function activeTotalSupply() public view returns (uint256) {
+    uint256 activeTotalSupply_ = 0;
+    for (uint i = 0; i < members.length; i++) 
+        if (members[i] != owner) activeTotalSupply_ += balances[members[i]];
+    return ;
+  }
+
+  function balanceOf(address _owner) public view returns (uint256) {
+    return balances[_owner];
+  }
+  
+  function burn(uint256 _value) public onlyOwner returns (bool success) {
+    _value = _value * 10 ** uint256(decimals);
+    require(balances[msg.sender] >= _value);
+    balances[msg.sender] -= _value;
+    totalSupply_ -= _value; 
+    emit Burn(msg.sender, _value);
+    return true;
+  }
+  
+  function _transfer(address _from, address _to, uint256 _value) internal {
+    require(_to != 0x0);
+    require(balances[_from] >= _value);
+    require(balances[_to] + _value >= balances[_to]);
+    uint previousBalances = balances[_from] + balances[_to];
+    if (joiners[_to] >= 1) {
+      joiners[_to] = 1;
+      members.push(_to);
+    }
+    balances[_from] -= _value;
+    balances[_to] += _value;
+    emit Transfer(_from, _to, _value);
+    assert(balances[_from] + balances[_to] == previousBalances);
+  }
+
+  function transfer(address _to, uint256 _value) public {
+    _transfer(msg.sender, _to, _value);
+  }
+  
+}
