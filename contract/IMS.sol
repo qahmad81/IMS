@@ -56,12 +56,41 @@ contract IMS {
     priceDecimals = _priceDecimals;
   }
   
-  function setName(uint256 _name) external onlyOwner  {
+  function setName(string _name) external onlyOwner  {
     name = _name;
   }
   
-  function setSymbol(uint256 _symbol) external onlyOwner  {
+  function setSymbol(string _symbol) external onlyOwner  {
     symbol = _symbol;
+  }
+  
+  function tradeList(uint8 _way) external view returns (uint[], uint[]) {
+    uint[] memory _tradeListPrice;
+    uint[] memory _tradeListAmount;
+    uint counter=0;
+    mapping (uint => uint) tradeKeys;
+    uint tradeKey=0;
+    uint tradePrice;
+    uint found;
+    uint j;
+    for(uint i=0;i <= trades.length;i++) {
+      found = 0;
+      tradePrice = 0;
+      for(j=0;j <= trades.length;j++) {
+        if (trades[j].way == _way && tradeKeys[j] != 1)
+          if ((_way == 1 && tradePrice > trades[j].price) || (_way == 2 && tradePrice < trades[j].price) || tradePrice == 0) {
+            tradeKey = j;
+            tradePrice = trades[j].price;
+            found = 1;
+          }
+      }
+      if (found != 1) break;
+      _tradeListPrice[counter] = trades[tradeKey].price;
+      _tradeListAmount[counter] = trades[tradeKey].quantity;
+      counter++;
+      tradeKeys[tradeKey] = 1;
+    }
+    return (_tradeListPrice, _tradeListAmount);
   }
 
   function tradeSearch(uint8 _way, uint _price) public returns (uint8 _found, uint _tradeId) {
@@ -135,7 +164,7 @@ contract IMS {
   function makeBuyTrade(uint256 _amount, uint256 _price) external payable {
     require(_amount >= minOffer);
     require(msg.value >= _amount);
-    require(price % 10 ** uint256(priceDecimals) == 0);
+    require(_price % 10 ** uint256(priceDecimals) == 0);
     uint _value = _amount * _price;
     uint _tradeValue = 0;
     uint remainder;
