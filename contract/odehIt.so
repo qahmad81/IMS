@@ -1,11 +1,17 @@
-pragma solidity ^0.4.16;
+pragma solidity ^0.4.24;
 
-contract odehIt {
+/// @title IMS Investor Management System
+/// @author Ahmad Odeh
+/// @notice invest shares system, share trade, Profits Distribution, Vote system
+
+contract IMS {
   string public name = "Odeh IT";
   string public symbol = "ODH";
   uint8 public decimals = 8;
-  uint256 totalSupply_ = 100000 * 10 ** uint256(decimals);
-  uint256 public minOffer = 10 * 10 ** uint256(decimals);
+  uint256 totalSupply_ = 2000000 * 10 ** uint256(decimals);
+  uint256 public minOffer = 1000 * 10 ** uint256(decimals);
+  uint256 public minRemainder = 1 * 10 ** uint256(decimals);
+  uint256 public priceDecimals = 10;  // 10 ** priceDecimals = wei
 
   mapping(address => uint256) balances;
   mapping(address => uint256) lockedBalances;
@@ -37,23 +43,144 @@ contract odehIt {
   // This notifies clients about the amount burnt
   event Burn(address indexed from, uint256 value);
   
-  function makeSellTrade(uint256 amount, uint256 price) external {
-    require(amount >= minOffer);
-    require(msg.value >= amount);
-    uint _value = amount * price;
-    balances[msg.sender] -= _value;
-    lockedBalances[msg.sender] += _value;
-    uint id = trades.push(Trade(msg.sender, 1, now, amount, price));
-    myTrade[msg.sender].push(id);
+  
+  function setMinOffer(uint256 _minOffer) external onlyOwner  {
+    minOffer = _minOffer;
+  }
+  
+  function setMinRemainder(uint256 _minRemainder) external onlyOwner  {
+    minRemainder = _minRemainder;
+  }
+  
+  function setPriceDecimals(uint256 _priceDecimals) external onlyOwner  {
+    priceDecimals = _priceDecimals;
+  }
+  
+  function setName(uint256 _name) external onlyOwner  {
+    name = _name;
+  }
+  
+  function setSymbol(uint256 _symbol) external onlyOwner  {
+    symbol = _symbol;
   }
 
-  function makeBuyTrade(uint256 amount, uint256 price) external payable {
-    require(amount >= minOffer);
-    require(msg.value >= amount);
-    uint _value = amount * price;
+  function tradeSearch(uint8 _way, uint _price) public returns (uint8 _found, uint _tradeId) {
+    uint price = _price;
+    uint _createTime = 0;
+    uint8 found = 0;
+    uint tradeId;
+    for(uint i;i <= trades.length;i++) {
+      if (trades[i].way == 1 && _way == 1) {
+        if (trades[i].price <= price ) {
+          if (_createTime = 0 || trades[i].createTime < _createTime ) {
+            _createTime = trades[i].createTime;
+            price = trades[i].price;
+            found = 1;
+          }
+        }
+      } else if (trades[i].way == 2 && _way == 2) {
+        if (trades[i].price >= price) {
+          if (_createTime = 0 || trades[i].createTime < _createTime ) {
+            _createTime = trades[i].createTime;
+            price = trades[i].price;
+            found = 1;
+          }
+        }
+      }
+    }
+    return (found, tradeId);
+  }
+  
+  function makeSellTrade(uint256 _amount, uint256 _price) external {
+    require(_amount >= minOffer);
+    require(msg.value >= _amount);
+    require(_price % 10 ** uint256(priceDecimals) == 0);
+    uint _value = _amount * _price;
+    uint8 _found = 1;
+    uint _tradeId;
+    
+    while(_found == 1 && _amount >= minRemainder) {
+      // search for highest oldest buy offer
+      (_found, _tradeId) = tradeSearch(2, _price);
+      if (_found == 1) {
+        if (trades[_tradeId].quantity == _amount) {
+          balances[trades[_tradeId].owner] += _amount;
+          msg.sender.transfer(_amount * trades[_tradeId].price);
+          _removeTrade(_tradeId);
+          _amount = 0;
+        }
+        if (trades[_tradeId].quantity > _amount) {
+          balances[trades[_tradeId].owner] += _amount;
+          msg.sender.transfer(_amount * trades[_tradeId].price);
+          trades[_tradeId].quantity -= _amount;
+          _amount = 0;
+        }
+        if (trades[_tradeId].quantity < _amount) {
+          balances[trades[_tradeId].owner] += trades[_tradeId].quantity;
+          msg.sender.transfer(trades[_tradeId].quantity * trades[_tradeId].price);
+          _removeTrade(_tradeId);
+          _amount -= trades[_tradeId].quantity;
+        }
+      }
+    }
+    
+    if (_amount >= minRemainder) {
+      balances[msg.sender] -= _value;
+      lockedBalances[msg.sender] += _value;
+      uint id = trades.push(Trade(msg.sender, 1, now, _amount, _price));
+      myTrade[msg.sender].push(id);
+    }
+  }
+
+  function makeBuyTrade(uint256 _amount, uint256 _price) external payable {
+    require(_amount >= minOffer);
+    require(msg.value >= _amount);
+    require(price % 10 ** uint256(priceDecimals) == 0);
+    uint _value = _amount * _price;
+    uint _tradeValue = 0;
+    uint remainder;
     require(_value == msg.value);
-    uint id = trades.push(Trade(msg.sender, 2, now, amount, price));
-    myTrade[msg.sender].push(id);
+    uint8 _found = 1;
+    uint _tradeId;
+    
+    while(_found == 1 && _amount >= minRemainder) {
+      // search for lowest oldest sale
+      (_found, _tradeId) = tradeSearch(1, _price); 
+      if (_found == 1) {
+        if (trades[_tradeId].quantity == _amount) {
+          balances[msg.sender] += _amount;
+          trades[_tradeId].owner.transfer(_amount * trades[_tradeId].price);
+          _tradeValue += _amount * trades[_tradeId].price;
+          _removeTrade(_tradeId);
+          _amount = 0;
+        }
+        if (trades[_tradeId].quantity > _amount) {
+          balances[msg.sender] += _amount;
+          trades[_tradeId].owner.transfer(_amount * trades[_tradeId].price);
+          _tradeValue += _amount * trades[_tradeId].price;
+          trades[_tradeId].quantity -= _amount;
+          _amount = 0;
+        }
+        if (trades[_tradeId].quantity < _amount) {
+          balances[msg.sender] += trades[_tradeId].quantity;
+          trades[_tradeId].owner.transfer(trades[_tradeId].quantity * trades[_tradeId].price);
+          _tradeValue += trades[_tradeId].quantity * trades[_tradeId].price;
+          _removeTrade(_tradeId);
+          _amount -= trades[_tradeId].quantity;
+        }
+      }
+
+    }
+
+    if (_amount >= minRemainder) {
+      uint id = trades.push(Trade(msg.sender, 2, now, _amount, _price));
+      myTrade[msg.sender].push(id);
+      _tradeValue += _amount * _price;
+      _amount = 0;
+    }
+    
+    remainder = _value - _tradeValue;
+    msg.sender.transfer(remainder);
   }
   
   function cancelTrade(uint _tradesId) external {
