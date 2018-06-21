@@ -68,7 +68,7 @@ contract IMS {
     uint[] memory _tradeListPrice;
     uint[] memory _tradeListAmount;
     uint counter=0;
-    mapping (uint => uint) tradeKeys;
+    //mapping (uint => uint) memory tradeKeys;
     uint tradeKey=0;
     uint tradePrice;
     uint found;
@@ -77,7 +77,7 @@ contract IMS {
       found = 0;
       tradePrice = 0;
       for(j=0;j <= trades.length;j++) {
-        if (trades[j].way == _way && tradeKeys[j] != 1)
+        if (trades[j].way == _way) // && tradeKeys[j] != 1)
           if ((_way == 1 && tradePrice > trades[j].price) || (_way == 2 && tradePrice < trades[j].price) || tradePrice == 0) {
             tradeKey = j;
             tradePrice = trades[j].price;
@@ -88,7 +88,7 @@ contract IMS {
       _tradeListPrice[counter] = trades[tradeKey].price;
       _tradeListAmount[counter] = trades[tradeKey].quantity;
       counter++;
-      tradeKeys[tradeKey] = 1;
+      //tradeKeys[tradeKey] = 1;
     }
     return (_tradeListPrice, _tradeListAmount);
   }
@@ -101,7 +101,7 @@ contract IMS {
     for(uint i;i <= trades.length;i++) {
       if (trades[i].way == 1 && _way == 1) {
         if (trades[i].price <= price ) {
-          if (_createTime = 0 || trades[i].createTime < _createTime ) {
+          if (_createTime == 0 || trades[i].createTime < _createTime ) {
             _createTime = trades[i].createTime;
             price = trades[i].price;
             found = 1;
@@ -109,7 +109,7 @@ contract IMS {
         }
       } else if (trades[i].way == 2 && _way == 2) {
         if (trades[i].price >= price) {
-          if (_createTime = 0 || trades[i].createTime < _createTime ) {
+          if (_createTime == 0 || trades[i].createTime < _createTime ) {
             _createTime = trades[i].createTime;
             price = trades[i].price;
             found = 1;
@@ -120,7 +120,8 @@ contract IMS {
     return (found, tradeId);
   }
   
-  function makeSellTrade(uint256 _amount, uint256 _price) external {
+  function makeSellTrade(uint256 amount, uint256 _price) external {
+    uint256 _amount = amount;
     require(_amount >= minOffer);
     require(msg.value >= _amount);
     require(_price % 10 ** uint256(priceDecimals) == 0);
@@ -161,7 +162,8 @@ contract IMS {
     }
   }
 
-  function makeBuyTrade(uint256 _amount, uint256 _price) external payable {
+  function makeBuyTrade(uint256 amount, uint256 _price) external payable {
+    uint256 _amount = amount;
     require(_amount >= minOffer);
     require(msg.value >= _amount);
     require(_price % 10 ** uint256(priceDecimals) == 0);
