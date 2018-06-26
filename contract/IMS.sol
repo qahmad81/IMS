@@ -25,7 +25,7 @@ contract IMS {
     address owner;
     uint8 way; // 1:sell 2:buy
     uint createTime;
-    uint quantity;
+    uint amount;
     uint price;
   }
   Trade[] public trades;
@@ -65,32 +65,54 @@ contract IMS {
   }
   
   function tradeList(uint8 _way) external view returns (uint[], uint[]) {
-    uint[] memory _tradeListPrice;
-    uint[] memory _tradeListAmount;
-    uint counter=0;
-    //mapping (uint => uint) memory tradeKeys;
-    uint tradeKey=0;
-    uint tradePrice;
-    uint found;
-    uint j;
-    for(uint i=0;i <= trades.length;i++) {
+    uint[] memory _tradeListPrice, _tradeListAmount;
+    int i,j, temp, found, counter = 0;
+
+    // make filtered array of sell prices or buy prices without repeating
+    for(i=0;i <= trades.length;i++) {
+      if (trades[i].way != _way) continue;
       found = 0;
-      tradePrice = 0;
-      for(j=0;j <= trades.length;j++) {
-        if (trades[j].way == _way) // && tradeKeys[j] != 1)
-          if ((_way == 1 && tradePrice > trades[j].price) || (_way == 2 && tradePrice < trades[j].price) || tradePrice == 0) {
-            tradeKey = j;
-            tradePrice = trades[j].price;
-            found = 1;
-          }
+      for(j=0;j <= _tradeListPrice.length;j++) {
+        if (trades[i].price == _tradeListPrice[j]) {
+          found = 1;
+          break;
+        }
       }
-      if (found != 1) break;
-      _tradeListPrice[counter] = trades[tradeKey].price;
-      _tradeListAmount[counter] = trades[tradeKey].quantity;
-      counter++;
-      //tradeKeys[tradeKey] = 1;
+      if (found != 1) {
+        _tradeListPrice[counter] = trades[i].price;
+        counter++;
+      }
     }
-    return (_tradeListPrice, _tradeListAmount);
+
+    // sort the new price array ASC with selling list, DESC with buying list
+    _price = _tradeListPrice[0];
+    for(i=0;i <= _tradeListPrice.length;i++) {
+      for(j=0;j <= _tradeListPrice.length;j++) {
+        if (_way == 1) {
+          if (_tradeListPrice[i] > _tradeListPrice[j]) {
+            temp = _tradeListPrice[j];
+            _tradeListPrice[j] = _tradeListPrice[i];
+            _tradeListPrice[i] = temp;
+          }
+        } else if (_way ==2) {
+          if (_tradeListPrice[i] < _tradeListPrice[j]) {
+            temp = _tradeListPrice[j];
+            _tradeListPrice[j] = _tradeListPrice[i];
+            _tradeListPrice[i] = temp;
+          }
+        }
+      }
+    }
+    
+    // make amount array
+    for(i=0;i <= _tradeListPrice.length;i++) {
+      for(j=0;j <= trades.length;j++) {
+        if (trades[j].way != _way) continue;
+        if (_tradeListPrice[i] == trades[j].price) {
+          _tradeListAmount[i] += trades[j].amount;
+        }
+      }
+    }
   }
 
   function tradeSearch(uint8 _way, uint _price) public returns (uint8 _found, uint _tradeId) {
@@ -120,8 +142,8 @@ contract IMS {
     return (found, tradeId);
   }
   
-  function makeSellTrade(uint256 amount, uint256 _price) external {
-    uint256 _amount = amount;
+  function makeSellTrade(uint256 _Amount, uint256 _price) external {
+    uint256 _amount = _Amount;
     require(_amount >= minOffer);
     require(msg.value >= _amount);
     require(_price % 10 ** uint256(priceDecimals) == 0);
@@ -133,23 +155,23 @@ contract IMS {
       // search for highest oldest buy offer
       (_found, _tradeId) = tradeSearch(2, _price);
       if (_found == 1) {
-        if (trades[_tradeId].quantity == _amount) {
+        if (trades[_tradeId].amount == _amount) {
           balances[trades[_tradeId].owner] += _amount;
           msg.sender.transfer(_amount * trades[_tradeId].price);
           _removeTrade(_tradeId);
           _amount = 0;
         }
-        if (trades[_tradeId].quantity > _amount) {
+        if (trades[_tradeId].amount > _amount) {
           balances[trades[_tradeId].owner] += _amount;
           msg.sender.transfer(_amount * trades[_tradeId].price);
-          trades[_tradeId].quantity -= _amount;
+          trades[_tradeId].amount -= _amount;
           _amount = 0;
         }
-        if (trades[_tradeId].quantity < _amount) {
-          balances[trades[_tradeId].owner] += trades[_tradeId].quantity;
-          msg.sender.transfer(trades[_tradeId].quantity * trades[_tradeId].price);
+        if (trades[_tradeId].amount < _amount) {
+          balances[trades[_tradeId].owner] += trades[_tradeId].amount;
+          msg.sender.transfer(trades[_tradeId].amount * trades[_tradeId].price);
           _removeTrade(_tradeId);
-          _amount -= trades[_tradeId].quantity;
+          _amount -= trades[_tradeId].amount;
         }
       }
     }
@@ -178,26 +200,26 @@ contract IMS {
       // search for lowest oldest sale
       (_found, _tradeId) = tradeSearch(1, _price); 
       if (_found == 1) {
-        if (trades[_tradeId].quantity == _amount) {
+        if (trades[_tradeId].amount == _amount) {
           balances[msg.sender] += _amount;
           trades[_tradeId].owner.transfer(_amount * trades[_tradeId].price);
           _tradeValue += _amount * trades[_tradeId].price;
           _removeTrade(_tradeId);
           _amount = 0;
         }
-        if (trades[_tradeId].quantity > _amount) {
+        if (trades[_tradeId].amount > _amount) {
           balances[msg.sender] += _amount;
           trades[_tradeId].owner.transfer(_amount * trades[_tradeId].price);
           _tradeValue += _amount * trades[_tradeId].price;
-          trades[_tradeId].quantity -= _amount;
+          trades[_tradeId].amount -= _amount;
           _amount = 0;
         }
-        if (trades[_tradeId].quantity < _amount) {
-          balances[msg.sender] += trades[_tradeId].quantity;
-          trades[_tradeId].owner.transfer(trades[_tradeId].quantity * trades[_tradeId].price);
-          _tradeValue += trades[_tradeId].quantity * trades[_tradeId].price;
+        if (trades[_tradeId].amount < _amount) {
+          balances[msg.sender] += trades[_tradeId].amount;
+          trades[_tradeId].owner.transfer(trades[_tradeId].amount * trades[_tradeId].price);
+          _tradeValue += trades[_tradeId].amount * trades[_tradeId].price;
           _removeTrade(_tradeId);
-          _amount -= trades[_tradeId].quantity;
+          _amount -= trades[_tradeId].amount;
         }
       }
 
@@ -217,7 +239,7 @@ contract IMS {
   function cancelTrade(uint _tradesId) external {
     Trade storage trade = trades[_tradesId];
     require(trade.owner == msg.sender);
-    uint _value = trade.quantity * trade.price;
+    uint _value = trade.amount * trade.price;
     if (trade.way == 1) {
       balances[msg.sender] += _value;
       lockedBalances[msg.sender] -= _value;
