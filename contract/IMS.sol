@@ -65,8 +65,13 @@ contract IMS {
   }
   
   function tradeList(uint8 _way) external view returns (uint[], uint[]) {
-    uint[] memory _tradeListPrice, _tradeListAmount;
-    int i,j, temp, found, counter = 0;
+    uint[] memory _tradeListPrice;
+    uint[] memory _tradeListAmount;
+    uint i;
+    uint j;
+    uint temp;
+    uint found;
+    uint counter = 0;
 
     // make filtered array of sell prices or buy prices without repeating
     for(i=0;i <= trades.length;i++) {
@@ -85,7 +90,6 @@ contract IMS {
     }
 
     // sort the new price array ASC with selling list, DESC with buying list
-    _price = _tradeListPrice[0];
     for(i=0;i <= _tradeListPrice.length;i++) {
       for(j=0;j <= _tradeListPrice.length;j++) {
         if (_way == 1) {
