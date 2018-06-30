@@ -31,6 +31,26 @@ contract IMS {
   Trade[] public trades;
   mapping(address => uint[]) myTrade;
 
+  struct Vote {
+    byte[] question;
+    byte[20][] options;
+    uint8 status; // 1:open, 2:close, 3:canceled
+    uint createTime;
+    uint expiryTime; // second after createTime
+  }
+
+
+  // vote system
+  Vote[] public votes;
+  mapping(address => mapping(uint => uint8)) isVote;
+
+  struct Voter {
+        address delegate;
+        uint voteTime;
+        uint weight;
+        uint8 vote;
+  }
+  mapping(uint => Voter[]) voting;
   
   modifier onlyOwner() {
     require(msg.sender == owner);
@@ -43,6 +63,87 @@ contract IMS {
   // This notifies clients about the amount burnt
   event Burn(address indexed from, uint256 value);
   
+  function makeNewVote(byte[] _question, byte[20][] _options, uint _expiryTime) external onlyOwner {
+    votes.push(Vote(_question, _options, 1, now, _expiryTime));
+  } 
+  
+  function ListOpenVote() external view returns (byte[10][], byte[10][20][])  {
+    byte[10][] memory _question;
+    byte[10][20][] memory _options;
+    uint index = 0;
+    uint j=0;
+    uint k=0;
+    for (uint i=0;i<votes.length;i++) {
+      if (votes[i].status == 1) {
+        for (j=0;j<votes[j].question.length;j++) {
+          _question[index][j] = votes[i].question[j];
+        }
+        for (j=0;j<votes[i].options.length;j++) {
+          for (k=0;k<votes[i].options[j].length;k++) {
+            _options[index][j][k] = votes[i].options[j][k];
+          }
+        }
+        index++;
+      }
+       if (index>9) break;
+   }
+    return (_question, _options);
+  }
+  
+  function ListArchiveVote() external view returns (byte[100][], byte[100][20][])  {
+    byte[100][] memory _question;
+    byte[100][20][] memory _options;
+    uint index = 0;
+    uint j=0;
+    uint k=0;
+    for (uint i=0;i<votes.length;i++) {
+      if (votes[i].status == 2) {
+        for (j=0;j<votes[j].question.length;j++) {
+          _question[index][j] = votes[i].question[j];
+        }
+        for (j=0;j<votes[i].options.length;j++) {
+          for (k=0;k<votes[i].options[j].length;k++) {
+            _options[index][j][k] = votes[i].options[j][k];
+          }
+        }
+        index++;
+      }
+      if (index>99) break;
+    }
+    return (_question, _options);
+  }
+  
+  function vote(uint _voteId, uint8 _option) external {
+    if (isVote[msg.sender][_voteId] >= 1) {
+      voting[_voteId].push(Voter(msg.sender, now, balances[msg.sender], _option));
+      isVote[msg.sender][_voteId] = _option;
+    }
+  }
+  
+  function getVoteData(uint _voteId) external view returns (byte[], byte[20][], uint, uint, uint, uint[]) {
+    uint[] memory _votes;
+    var i;
+    var index=0;
+    for(i=0; i <= votes[_voteId].options.length ; i++) {
+      _votes[i] = 0;
+      index++;
+    }
+    
+    for(i=0; i <= voting[_voteId].length ; i++)
+      _votes[voting[_voteId][i].vote] += voting[_voteId][i].weight;
+    return (votes[_voteId].question, votes[_voteId].options, votes[_voteId].status, votes[j].createTime, votes[_voteId].expiryTime, _votes);
+  }
+  
+  function closeVote(uint _voteId) external onlyOwner {
+    for(uinti=0; i <= voting[_voteId].length ; i++)
+      voting[_voteId][i].weight = balances[voting[_voteId][i].delegate];
+    votes[_voteId].status = 2;
+  }
+  
+  function cancelVote(uint _voteId) external onlyOwner {
+    votes[_voteId].status = 3;
+  }
+
   
   function setMinOffer(uint256 _minOffer) external onlyOwner  {
     minOffer = _minOffer;
