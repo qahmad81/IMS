@@ -31,6 +31,7 @@ contract IMS {
   Trade[] public trades;
   mapping(address => uint[]) myTrade;
 
+
   struct Vote {
     byte[] question;
     byte[20][] options;
@@ -51,7 +52,7 @@ contract IMS {
         uint8 vote;
   }
   mapping(uint => Voter[]) voting;
-  
+
   modifier onlyOwner() {
     require(msg.sender == owner);
     _;
@@ -122,8 +123,8 @@ contract IMS {
   
   function getVoteData(uint _voteId) external view returns (byte[], byte[20][], uint, uint, uint, uint[]) {
     uint[] memory _votes;
-    var i;
-    var index=0;
+    uint i;
+    uint index=0;
     for(i=0; i <= votes[_voteId].options.length ; i++) {
       _votes[i] = 0;
       index++;
@@ -131,11 +132,11 @@ contract IMS {
     
     for(i=0; i <= voting[_voteId].length ; i++)
       _votes[voting[_voteId][i].vote] += voting[_voteId][i].weight;
-    return (votes[_voteId].question, votes[_voteId].options, votes[_voteId].status, votes[j].createTime, votes[_voteId].expiryTime, _votes);
+    return (votes[_voteId].question, votes[_voteId].options, votes[_voteId].status, votes[_voteId].createTime, votes[_voteId].expiryTime, _votes);
   }
   
   function closeVote(uint _voteId) external onlyOwner {
-    for(uinti=0; i <= voting[_voteId].length ; i++)
+    for(uint i=0; i <= voting[_voteId].length ; i++)
       voting[_voteId][i].weight = balances[voting[_voteId][i].delegate];
     votes[_voteId].status = 2;
   }
@@ -143,7 +144,6 @@ contract IMS {
   function cancelVote(uint _voteId) external onlyOwner {
     votes[_voteId].status = 3;
   }
-
   
   function setMinOffer(uint256 _minOffer) external onlyOwner  {
     minOffer = _minOffer;
